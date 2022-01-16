@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+<!--
+
+MIT License
+
+Copyright (c) 2022 Ed Puckett
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+-->
+    <script src="https://cdn.plot.ly/plotly-2.8.3.min.js"></script>
+    <style>
+        #input {
+            width: 100%;
+        }
+        #controls div * {
+            vertical-align: middle;
+        }
+        .display {
+            margin-left: 0.1rem;
+            padding: 0 0.5rem;
+            background-color: #eee;
+        }
+    </style>
+</head>
+<body>
+    <textarea id="input">
+// extrapolator:
+// f(x) returns xdot which has the same dimension as x
+// extrapolator returns a new x with the same dimension as the original
+
+function runge_kutta_extrapolator(dt, f, x) {
+    // This is an implementation of the fourth-order Runge-Kutta method
+    // as presented in Nonlinear Dynamics and Chaos, Second Edition, by
+    // Steven H. Strogatz, page 34.
+    // This implementation works for x with arbitrary dimension.
+    const k1 = f( x                                ).map( xidot => xidot*dt );
+    const k2 = f( x.map( (xi, i) => xi + k1[i]/2 ) ).map( xidot => xidot*dt );
+    const k3 = f( x.map( (xi, i) => xi + k2[i]/2 ) ).map( xidot => xidot*dt );
+    const k4 = f( x.map( (xi, i) => xi + k3[i])    ).map( xidot => xidot*dt );
+    return x.map( (xi, i) => xi + (k1[i] + 2*k2[i] + 2*k3[i] + k4[i])/6 );
+}
+
+const extrapolator = runge_kutta_extrapolator;
+
+const lorenz_def = {
+    extrapolator,
+    dt: 0.005,
+    x0: [3, 3, 1],
+    f:  ( (sigma=10, r=28, b=8/3) =>
+          ([x, y, z]) => [  // this is f, and it takes 1 argument which is decomposed into [x, y, z]
+              sigma*(y - x),
+              r*x - y - x*z,
+              x*y - b*z,
+          ]
+        )()
+};
+
+// return the equation definition to plot
+return lorenz_def;
+    </textarea>
+    <div id="controls">
+        <div>
+            <button id="go">Go</button>
+        </div>
+        <div>
+            <label for="points_per_loop">Time steps per loop</label>
+            <input id="points_per_loop" type="range" min="1" max= "10000" value="100">
+            <span id="points_per_loop_display" class="display"></span>
+        </div>
+        <div>
+            <label for="loop_delay">Loop delay</label>
+            <input id="loop_delay" type="range" min="0" max= "500" value="50">
+            <span id="loop_delay_display" class="display"></span> ms
+        </div>
+        <div>
+            <label for="points_shown">Time steps shown</label>
+            <input id="points_shown" type="range" min="0" max="100000" step="10" value="20000">
+            <span id="points_shown_display" class="display"></span>
+        </div>
+        <div>
+            <label for="point_count_display">Total time steps</label>
+            <span id="point_count_display" class="display"></span>
+        </div>
+    </div>
+    <div id="plot"></div>
+    <div id="output"></div>
+
+    <script>
+        const input_el  = document.getElementById('input');
+        const plot_el   = document.getElementById('plot');
+        const output_el = document.getElementById('output');
+
+        const go_button = document.getElementById('go');
+
+        const points_per_loop_el     = document.getElementById('points_per_loop');
+        const loop_delay_el          = document.getElementById('loop_delay');
+        const points_shown_el        = document.getElementById('points_shown');
+        const point_count_display_el = document.getElementById('point_count_display');
+
+        for (const range_id of [
+            'points_per_loop',
+            'loop_delay',
+            'points_shown',
+        ]) {
+            const range_el   = document.getElementById(range_id);
+            const display_el = document.getElementById(`${range_id}_display`);
+            display_el.innerText = range_el.value;
+            range_el.addEventListener('input', (event) => {
+                display_el.innerText = range_el.value;
+            });
+        }
+
+        function setup_auto_resize(textarea) {
+            const initial_height = (textarea.scrollHeight > 0) ? `${textarea.scrollHeight}px` : '0.5em';
+            textarea.setAttribute('style', `height:${initial_height}; overflow-y:hidden;`);
+            textarea.addEventListener("input", function textarea_input_handler(event) {
+                const textarea = event.target.closest('textarea');
+                const cs = window.getComputedStyle(textarea);
+                // note: all cs dimensional values are floating-point values followed by 'px'
+                const paddingY = parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom);
+                textarea.style.height = `${textarea.scrollHeight - paddingY}px`;
+            });
+        }
+        setup_auto_resize(input_el);
+        input_el.addEventListener('change', function (event) {
+            // update innerHTML so that saving the page saves changes, too
+            input_el.innerHTML = input_el.value;
+        });
+
+        const plot_height = 720;
+        plot_el.style = `height: ${plot_height}px`;
+
+        class Runner {
+            constructor(input_expression) {
+                this._input_expression = input_expression;
+
+                this._xs = [];
+                this._ys = [];
+                this._zs = [];
+                this._cs = [];
+
+                this._gdata = [{
+                    type: 'scatter3d',
+                    mode: 'lines',
+                    x: this._xs,
+                    y: this._ys,
+                    z: this._zs,
+                    opacity: 1,
+                    line: {
+                        width: 3,
+                        color: this._cs,
+                        reversescale: false,
+                    },
+                }];
+
+                this._paused  = false;
+
+                this._the_plot_el_mousedown_handler = (event) => { this._paused = true; };
+                this._the_plot_el_mousedown_handler_options = { capture: true };
+                this._the_plot_el_mouseup_handler = (event) => { this._paused = false; };
+                this._the_plot_el_mouseup_handler_options = { capture: true };
+                plot_el.addEventListener(
+                    'mousedown',
+                    this._the_plot_el_mousedown_handler,
+                    this._the_plot_el_mousedown_handler_options
+                );
+                plot_el.addEventListener(
+                    'mouseup',
+                    this._the_plot_el_mouseup_handler,
+                    this._the_plot_el_mouseup_handler_options
+                );
+
+                this._running = false;
+
+                this._done = new Promise(async (resolve, reject) => {
+                    this._running = true;
+                    try {
+
+                        const equation_def = await this.constructor._evaluate(this._input_expression);
+                        if ( typeof equation_def !== 'object') {
+                            throw new Error('equation_def must be an object');
+                        }
+
+                        const { extrapolator, dt, x0, f } = equation_def;
+
+                        if ( typeof extrapolator !== 'function') {
+                            throw new Error('equation_def.extrapolator must be a function');
+                        }
+                        if ( typeof dt !== 'number') {
+                            throw new Error('equation_def.dt must be a number');
+                        }
+                        if ( !Array.isArray(x0) || x0.length <= 0 || x0.some(e => (typeof e !== 'number'))) {
+                            throw new Error('equation_def.x0 be an non-empty array of numbers');
+                        }
+                        if ( typeof f !== 'function') {
+                            throw new Error('equation_def.f must be a function');
+                        }
+
+                        let x = [ ...x0 ];
+                        this._add(x);
+
+                        let point_count = 0;
+                        while (this._running) {
+                            if (!this._paused) {
+                                const points_per_loop = parseInt(points_per_loop_el.value);
+                                for (let i = 0; i < points_per_loop; i++) {
+                                    x = extrapolator(dt, f, x);
+                                    this._add(x);
+                                    point_count++;
+                                }
+                                this._trim_data();
+                                Plotly.react(plot_el, this._gdata, {
+                                    height: plot_height,
+                                    datarevision: point_count,
+                                });
+
+                                point_count_display_el.innerText = point_count;
+                            }
+
+                            const loop_delay = parseInt(loop_delay_el.value)
+                            await new Promise(resolve => setTimeout(resolve, loop_delay));
+                        }
+
+                        // done
+                        resolve({ point_count });
+
+                    } catch (err) {
+                        console.error(err.message, err.stack);
+                        alert(`${err.message}\n\n${err.stack}`);
+                        reject(err);
+                    }
+                });
+            }
+
+            get done (){ return this._done; }
+
+            stop() {
+                this._running = false;
+                plot_el.removeEventListener(
+                    'mousedown',
+                    this._the_plot_el_mousedown_handler,
+                    this._the_plot_el_mousedown_handler_options
+                );
+                plot_el.removeEventListener(
+                    'mouseup',
+                    this._the_plot_el_mouseup_handler,
+                    this._the_plot_el_mouseup_handler_options
+                );
+            }
+
+            // internal
+
+            _add([x, y, z], c=1) {
+                this._xs.push(x);
+                this._ys.push(y);
+                this._zs.push(z);
+                this._cs.push(c);
+            }
+
+            _trim_data() {
+                let limit = parseInt(points_shown_el.value);
+                if (isNaN(limit)) {
+                    limit = 0;
+                }
+                if (this._xs.length > limit) {
+                    this._xs.splice(0, this._xs.length-limit);
+                    this._ys.splice(0, this._ys.length-limit);
+                    this._zs.splice(0, this._zs.length-limit);
+                    this._cs.splice(0, this._cs.length-limit);
+                }
+            }
+
+            static async _evaluate(expression) {
+                const eval_context = {};  //!!!_create_eval_context();
+                const eval_context_entries = Object.entries(eval_context);
+
+                // create an async function with the expression as its body, and
+                // with parameters being the keys of eval_context.  Then, the
+                // expression will be evaluated by applying the function to the
+                // corresponding values from eval_context.  Note that evaluation
+                // will be performed in the global context.
+                const eval_fn_params = eval_context_entries.map(([k, _]) => k);
+                const eval_fn_args   = eval_context_entries.map(([_, v]) => v);
+                const AsyncFunction = Object.getPrototypeOf(async()=>{}).constructor;
+
+                // evaluate the expression:
+                const extended_expression = `'use strict';\n${expression}`;
+                const eval_fn = new AsyncFunction(...eval_fn_params, extended_expression);
+                const eval_fn_this = this.eval_state;
+
+                return eval_fn.apply(eval_fn_this, eval_fn_args);
+            }
+        }
+
+        let runner;
+        go_button.addEventListener('click', async (event) => {
+            if (runner) {
+                runner.stop();
+                runner = undefined;
+                go_button.innerText = 'Go';
+            } else {
+                point_count_display_el.innerText = '';
+                runner = new Runner(input_el.value);
+                plot_el.scrollIntoView();
+                go_button.innerText = 'Stop';
+            }
+        });
+
+        go_button.focus();
+
+    </script>
+</body>
+</html>
