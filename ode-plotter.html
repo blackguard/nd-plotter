@@ -60,6 +60,13 @@ function runge_kutta_extrapolator(dt, f, x) {
     return x.map( (xi, i) => xi + (k1[i] + 2*k2[i] + 2*k3[i] + k4[i])/6 );
 }
 
+// Definitions for some chaotic attractors provided by Dr. James P. Crutchfield
+// (one of the pioneers of Chaos Theory).
+//
+// For more information on chaotic attractors see Lecture 3 on the Roadmap page at the course:
+//
+//                 http://csc.ucdavis.edu/~chaos/courses/poci/
+
 const extrapolator = runge_kutta_extrapolator;
 
 const lorenz_def = {
@@ -71,6 +78,72 @@ const lorenz_def = {
               sigma*(y - x),
               r*x - y - x*z,
               x*y - b*z,
+          ]
+        )()
+};
+
+const owl_def = {
+    extrapolator,
+    dt: 0.005,
+    x0: [3, 3, 1],
+    f:  ( (a=10, b=10, c=13) =>
+          ([x, y, z]) => [
+              -a*(x + y),
+              -y - b*x*z,
+              10*x*y + c,
+          ]
+        )()
+};
+
+const rossler_def = {
+    extrapolator,
+    dt: 0.008,
+    x0: [10, 10, 1],
+    f:  ( (a=0.2, b=0.2, c=5.7) =>
+         ([x, y, z]) => [
+             -y - z,
+             x + a*y,
+             b + z*(x - c),
+         ]
+        )()
+};
+
+const rikitake0_def = {  // see: https://www.ncbi.nlm.nih.gov/pmc/articles/PMC7517210/
+    extrapolator,
+    dt: 0.01,
+    x0: [3, 1, 6],
+    f:  ( (alpha=5, beta=2) =>
+          ([x, y, z]) => [
+              -beta*x + y*z,
+              -beta*y - alpha*x + x*z,
+              1 - x*y,
+          ]
+        )()
+};
+
+const rikitake_def = {
+    extrapolator,
+    dt: 0.009,
+    x0: [0.268, 2, 0],
+    f:  ( (a=1, b=3.75) =>
+          ([x, y, z]) => [
+              -a*x + z*y,
+              -a*y - (z - b)*x,
+              1 - x*y,
+          ]
+        )()
+};
+
+const hyperchaos_def = {
+    extrapolator,
+    dt: 0.005,
+    x0: [-20, 15, 0, 35],
+    f:  ( (a=0.25, b=-0.5, c=2.2, d=0.05) =>
+          ([x, y, z, w]) => [
+              -y - z,
+              x + a*y + w,
+              c + x*z,
+              b*z + d*w,
           ]
         )()
 };
