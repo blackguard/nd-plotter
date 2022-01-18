@@ -1,6 +1,6 @@
 # ode-plotter
 
-Simple plotting utility for nonlinear dynamics attractors using the Plotly graphing library.
+Simple plotting utility for nonlinear dynamics attractors and other ODEs using the Plotly graphing library.
 
 Try it out [here](https://blackguard.github.io/ode-plotter/ode-plotter.html)
 
