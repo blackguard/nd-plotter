@@ -9,7 +9,7 @@ Try it out [here](https://blackguard.github.io/ode-plotter/ode-plotter.html)
 # Usage
 Load the file ode-plotter.html in a modern Web browser such as Firefox or Chromium.
 
-Define and return a "step" function in the input and click then "Go".
+Define and return an "equation definition" in the input area at the top of the page, and then click "Go".
 
 You can rotate the graph while running by dragging it, but for full control you must Stop the process.
 
