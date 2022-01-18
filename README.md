@@ -2,6 +2,8 @@
 
 Simple plotting utility for nonlinear dynamics attractors using the Plotly graphing library.
 
+Try it out [here](ode-plotter.html)
+
 # Usage
 Load the file ode-plotter.html in a modern Web browser such as Firefox or Chromium.
 
