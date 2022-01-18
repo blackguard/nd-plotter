@@ -4,6 +4,8 @@ Simple plotting utility for nonlinear dynamics attractors and other ODEs using t
 
 Try it out [here](https://blackguard.github.io/ode-plotter/ode-plotter.html)
 
+[Repository on github](https://github.com/blackguard/ode-plotter)
+
 # Usage
 Load the file ode-plotter.html in a modern Web browser such as Firefox or Chromium.
 
