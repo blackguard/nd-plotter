@@ -303,8 +303,8 @@ return lorenz_def;
             if (running) {
                 runner = new Runner(input_el.value);
                 point_count_display_el.innerText = '';
-                plot_el.scrollIntoView();
                 go_button.innerText = 'Stop';
+                go_button.scrollIntoView();
             } else {
                 runner = undefined;
                 go_button.innerText = 'Go';
