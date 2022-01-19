@@ -44,21 +44,40 @@ SOFTWARE.
 </head>
 <body>
     <textarea id="input">
+// F = (number[], params?: any) => number[]
+//
+// Config = {
+//     extrapolator?: (dt: number, f: F, x: number[], params: any),
+//     dt?: number,
+//     x0?: number[],
+//     params?: any,
+//     skip:  integer,
+//     steps: integer,
+// }
+//
+// EquationDef = Config + {
+//     iter?: iterable<Config>|generator<Config>(def: EquationDef),
+//     iter_delay: number,
+//     f: F,
+// }
+
+
 // extrapolator:
 // f(x) returns xdot which has the same dimension as x
 // extrapolator returns a new x with the same dimension as the original
 
-function runge_kutta_extrapolator(dt, f, x) {
+function runge_kutta_extrapolator(dt, f, x, params) {
     // This is an implementation of the fourth-order Runge-Kutta method
     // as presented in Nonlinear Dynamics and Chaos, Second Edition, by
     // Steven H. Strogatz, page 34.
     // This implementation works for x with arbitrary dimension.
-    const k1 = f( x                                ).map( xidot => xidot*dt );
-    const k2 = f( x.map( (xi, i) => xi + k1[i]/2 ) ).map( xidot => xidot*dt );
-    const k3 = f( x.map( (xi, i) => xi + k2[i]/2 ) ).map( xidot => xidot*dt );
-    const k4 = f( x.map( (xi, i) => xi + k3[i])    ).map( xidot => xidot*dt );
+    const k1 = f( x,                                params ).map( xidot => xidot*dt );
+    const k2 = f( x.map( (xi, i) => xi + k1[i]/2 ), params ).map( xidot => xidot*dt );
+    const k3 = f( x.map( (xi, i) => xi + k2[i]/2 ), params ).map( xidot => xidot*dt );
+    const k4 = f( x.map( (xi, i) => xi + k3[i]),    params ).map( xidot => xidot*dt );
     return x.map( (xi, i) => xi + (k1[i] + 2*k2[i] + 2*k3[i] + k4[i])/6 );
 }
+
 
 // Definitions for some chaotic attractors provided by Dr. James P. Crutchfield
 // (one of the pioneers of Chaos Theory).
@@ -223,6 +242,78 @@ return lorenz_def;
         const plot_height = 720;
         plot_el.style = `height: ${plot_height}px`;
 
+        const Generator = Object.getPrototypeOf(function*(){}).constructor;
+
+        function validate_f(f) {
+            if (typeof f !== 'function') {
+                throw new Error('f must be a function');
+            }
+        }
+        function validate_extrapolator(extrapolator) {
+            if (typeof extrapolator !== 'function') {
+                throw new Error('extrapolator must be a function');
+            }
+        }
+        function validate_config(config) {
+            if ( typeof config !== 'object') {
+                throw new Error('config must be an object')
+            }
+            const { extrapolator, dt, x0, skip, steps } = config;  // params is unrestricted
+            if (extrapolator) {
+                validate_extrapolator(extrapolator);
+            }
+            if (typeof dt !== 'undefined' && typeof dt !== 'number') {
+                throw new Error('dt must be a number');
+            }
+            if (typeof x0 !== 'undefined' &&
+                 (!Array.isArray(x0) || x0.length <= 0 || x0.some(e => (typeof e !== 'number'))) ) {
+                throw new Error('x0 must be a non-empty array of numbers');
+            }
+            if (typeof skip !== 'undefined' && (!Number.isInteger(skip) || skip < 0)) {
+                throw new Error('skip must be a non-negative intgeger');
+            }
+            if (typeof steps !== 'undefined' && (!Number.isInteger(steps) || steps <= 0)) {
+                throw new Error('steps must be a positive intgeger');
+            }
+        }
+        function validate_equation_def(equation_def) {
+            if ( typeof equation_def !== 'object') {
+                throw new Error('equation definition must be an object')
+            }
+            validate_config(equation_def);  // equation_def is a subclass of config
+            const { iter, iter_delay, f } = equation_def;
+            if (iter) {
+                const iterator_fn = iter[Symbol.iterator];
+                if ( (typeof iterator_fn !== 'undefined' && typeof iterator_fn !== 'function') &&
+                     !(iter instanceof Generator) ) {
+                    throw new Error('iter must be an iterable or a generator function');
+                }
+            }
+            if (typeof iter_delay !== 'undefined' && (typeof iter_delay !== 'number' || iter_delay < 0)) {
+                throw new Error('iter_delay must be a non-negative number');
+            }
+            if (f) {
+                validate_f(f);
+            }
+        }
+
+        let runner;
+        function set_running_state(running) {
+            runner?.stop();
+            if (running) {
+                runner = new Runner(input_el.value);
+                point_count_display_el.innerText = '';
+                plot_el.scrollIntoView();
+                go_button.innerText = 'Stop';
+            } else {
+                runner = undefined;
+                go_button.innerText = 'Go';
+            }
+        }
+        go_button.addEventListener('click', async (event) => {
+            set_running_state(!runner);
+        });
+
         class Runner {
             constructor(input_expression) {
                 this._input_expression = input_expression;
@@ -246,6 +337,7 @@ return lorenz_def;
                     },
                 }];
 
+                this._stopped = false;
                 this._paused  = false;
 
                 this._the_plot_el_mousedown_handler = (event) => { this._paused = true; };
@@ -270,56 +362,92 @@ return lorenz_def;
                     try {
 
                         const equation_def = await this.constructor._evaluate(this._input_expression);
-                        if ( typeof equation_def !== 'object') {
-                            throw new Error('equation_def must be an object');
-                        }
+                        validate_equation_def(equation_def);
 
-                        const { extrapolator, dt, x0, f } = equation_def;
+                        const { f, iter_delay } = equation_def;
+                        let   { iter }          = equation_def;
 
-                        if ( typeof extrapolator !== 'function') {
-                            throw new Error('equation_def.extrapolator must be a function');
+                        if (!iter) {
+                            iter = [{}];  // one empty config
+                        } else if (iter instanceof Generator) {
+                            iter = iter(equation_def);
                         }
-                        if ( typeof dt !== 'number') {
-                            throw new Error('equation_def.dt must be a number');
-                        }
-                        if ( !Array.isArray(x0) || x0.length <= 0 || x0.some(e => (typeof e !== 'number'))) {
-                            throw new Error('equation_def.x0 be an non-empty array of numbers');
-                        }
-                        if ( typeof f !== 'function') {
-                            throw new Error('equation_def.f must be a function');
-                        }
+                        // iter is now an iterable
 
-                        let x = [ ...x0 ];
-                        this._add(x);
-
-                        let point_count = 0;
-                        while (this._running) {
-                            if (!this._paused) {
-                                const points_per_loop = parseInt(points_per_loop_el.value);
-                                for (let i = 0; i < points_per_loop; i++) {
-                                    x = extrapolator(dt, f, x);
-                                    this._add(x);
-                                    point_count++;
-                                }
-                                this._trim_data();
-                                Plotly.react(plot_el, this._gdata, {
-                                    height: plot_height,
-                                    datarevision: point_count,
-                                });
-
-                                point_count_display_el.innerText = point_count;
+                        let first_iteration = true;
+                        for (const config of iter) {
+                            if (!this._running) {
+                                break;
                             }
 
-                            const loop_delay = parseInt(loop_delay_el.value)
-                            await new Promise(resolve => setTimeout(resolve, loop_delay));
+                            this._clear_data();
+
+                            const merged_config = {
+                                ...equation_def,  // equation_def may contain config properties
+                                ...config,        // config properties override those in equation_def
+                            };
+                            validate_config(merged_config);
+
+                            if (iter_delay && !first_iteration) {
+                                await new Promise(resolve => setTimeout(resolve, iter_delay));
+                            }
+                            first_iteration = false;
+
+                            const { extrapolator, dt, x0, params, skip=0, steps=Infinity } = merged_config;
+
+                            let x = [ ...x0 ];  // copy x0 to insulate from mutation
+                            if (skip <= 0) {
+                                this._add(x);
+                            }
+
+                            let plot_fn = Plotly.newPlot;
+                            let point_count = 0;
+                            while (this._running && point_count < skip+steps) {
+                                if (!this._paused) {
+                                    const points_per_loop = parseInt(points_per_loop_el.value);
+                                    for (let i = 0; i < points_per_loop; i++) {
+                                        x = extrapolator(dt, f, x, params);
+                                        point_count++;
+                                        if (point_count >= skip) {
+                                            this._add(x);
+                                        }
+                                        if (point_count >= skip+steps) {
+                                            break;
+                                        }
+                                    }
+
+                                    this._trim_data();
+
+                                    if (point_count >= skip) {
+                                        plot_fn(plot_el, this._gdata, {
+                                            height: plot_height,
+                                            datarevision: point_count,
+                                        });
+                                        plot_fn = Plotly.react;
+                                    }
+
+                                    point_count_display_el.innerText = point_count;
+                                }
+
+                                if (point_count < skip+steps) {
+                                    const loop_delay = parseInt(loop_delay_el.value);
+                                    await new Promise(resolve => setTimeout(resolve, loop_delay));
+                                }
+                            }
                         }
 
                         // done
-                        resolve({ point_count });
+                        if (!this._stopped) {
+                            set_running_state(false);
+                        }
+                        resolve();
 
                     } catch (err) {
                         console.error(err.message, err.stack);
                         alert(`${err.message}\n\n${err.stack}`);
+                        if (!this._stopped) {
+                            set_running_state(false);
+                        }
                         reject(err);
                     }
                 });
@@ -328,6 +456,7 @@ return lorenz_def;
             get done (){ return this._done; }
 
             stop() {
+                this._stopped = true;
                 this._running = false;
                 plot_el.removeEventListener(
                     'mousedown',
@@ -343,11 +472,11 @@ return lorenz_def;
 
             // internal
 
-            _add([x, y, z], c=1) {
-                this._xs.push(x);
-                this._ys.push(y);
-                this._zs.push(z);
-                this._cs.push(c);
+            _clear_data() {
+                this._xs.splice(0, this._xs.length);
+                this._ys.splice(0, this._ys.length);
+                this._zs.splice(0, this._zs.length);
+                this._cs.splice(0, this._cs.length);
             }
 
             _trim_data() {
@@ -361,6 +490,13 @@ return lorenz_def;
                     this._zs.splice(0, this._zs.length-limit);
                     this._cs.splice(0, this._cs.length-limit);
                 }
+            }
+
+            _add([x, y, z], c=1) {
+                this._xs.push(x);
+                this._ys.push(y);
+                this._zs.push(z);
+                this._cs.push(c);
             }
 
             static async _evaluate(expression) {
@@ -384,20 +520,6 @@ return lorenz_def;
                 return eval_fn.apply(eval_fn_this, eval_fn_args);
             }
         }
-
-        let runner;
-        go_button.addEventListener('click', async (event) => {
-            if (runner) {
-                runner.stop();
-                runner = undefined;
-                go_button.innerText = 'Go';
-            } else {
-                point_count_display_el.innerText = '';
-                runner = new Runner(input_el.value);
-                plot_el.scrollIntoView();
-                go_button.innerText = 'Stop';
-            }
-        });
 
         go_button.focus();
 
