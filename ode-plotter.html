@@ -419,10 +419,17 @@ return lorenz_def;
                                     this._trim_data();
 
                                     if (point_count >= skip) {
-                                        plot_fn(plot_el, this._gdata, {
+                                        const layout = {
                                             height: plot_height,
                                             datarevision: point_count,
-                                        });
+                                        };
+                                        // note: plot_el._fullLayout is undocumented...
+                                        if (plot_el._fullLayout?.scene?.camera) {
+                                            layout.scene = {
+                                                camera: plot_el._fullLayout.scene.camera,
+                                            };
+                                        }
+                                        plot_fn(plot_el, this._gdata, layout);
                                         plot_fn = Plotly.react;
                                     }
 
