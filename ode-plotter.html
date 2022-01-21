@@ -46,13 +46,22 @@ SOFTWARE.
     <textarea id="input">
 // F = (number[], params?: any) => number[]
 //
+// PointCloud = {
+//     n: integer,
+//     c: number[];
+//     r: number,
+//     dt?: number,
+//     steps?: integer,
+// }
+//
 // Config = {
 //     extrapolator?: (dt: number, f: F, x: number[], params: any),
 //     dt?: number,
 //     x0?: number[],
 //     params?: any,
-//     skip:  integer,
-//     steps: integer,
+//     skip?:  integer,
+//     steps?: integer,
+//     point_cloud?: PointCloud,
 // }
 //
 // EquationDef = Config + {
@@ -167,8 +176,29 @@ const hyperchaos_def = {
         )()
 };
 
+const point_cloud_def = {
+    extrapolator,
+    dt: 0.005,
+    x0: [3, 3, 1],
+    f:  ( (sigma=10, r=28, b=8/3) =>
+          ([x, y, z]) => [  // this is f, and it takes 1 argument which is decomposed into [x, y, z]
+              sigma*(y - x),
+              r*x - y - x*z,
+              x*y - b*z,
+          ]
+        )(),
+    skip:  1000,
+    steps: 10000,
+    point_cloud: {
+        n: 60000,
+        c: [3, 3, 1],
+        r: 0.05,
+        dt: 0.05,
+    }
+};
+
 // return the equation definition to plot
-return lorenz_def;
+return point_cloud_def;
     </textarea>
     <div id="controls">
         <div>
@@ -176,7 +206,7 @@ return lorenz_def;
         </div>
         <div>
             <label for="points_per_loop">Time steps per loop</label>
-            <input id="points_per_loop" type="range" min="1" max= "10000" value="100">
+            <input id="points_per_loop" type="range" min="1" max= "10000" value="1000">
             <span id="points_per_loop_display" class="display"></span>
         </div>
         <div>
@@ -254,45 +284,77 @@ return lorenz_def;
                 throw new Error('extrapolator must be a function');
             }
         }
-        function validate_config(config) {
-            if ( typeof config !== 'object') {
-                throw new Error('config must be an object')
+        function validate_point_cloud(point_cloud) {
+            if ( typeof point_cloud !== 'object') {
+                throw new Error('point_cloud must be an object')
             }
-            const { extrapolator, dt, x0, skip, steps } = config;  // params is unrestricted
+            const { n, c, r, dt, steps } = point_cloud;
+            if (typeof n === 'undefined') {
+                throw new Error('point_cloud.n must be defined');
+            } else if (!Number.isInteger(n) || n <= 0) {
+                throw new Error('point_cloud.n must be a positive integer');
+            }
+            if (typeof c === 'undefined') {
+                throw new Error('point_cloud.c must be defined');
+            } else if (!Array.isArray(c) || c.length <= 0 || c.some(e => (typeof e !== 'number'))) {
+                throw new Error(`point_cloud.c must be a non-empty array of numbers`);
+            }
+            if (typeof r === 'undefined') {
+                throw new Error('point_cloud.r must be defined');
+            } else if (typeof r !== 'number' || r <= 0) {
+                throw new Error('point_cloud.r must be a positive number');
+            }
+            if (typeof dt !== 'undefined' && (typeof dt !== 'number' || dt <= 0)) {
+                throw new Error(`point_cloud.dt must be a positive number`);
+            }
+            if (typeof steps !== 'undefined' && (!Number.isInteger(steps) || steps < 0)) {
+                throw new Error('steps point_cloudmust be a non-negative integer');
+            }
+        }
+        function validate_config(config, structure_name='config') {
+            if ( typeof config !== 'object') {
+                throw new Error(`${structure_name} must be an object`)
+            }
+            const { extrapolator, dt, x0, skip, steps, point_cloud } = config;  // params is unrestricted
             if (extrapolator) {
                 validate_extrapolator(extrapolator);
             }
-            if (typeof dt !== 'undefined' && typeof dt !== 'number') {
-                throw new Error('dt must be a number');
+            if (typeof dt !== 'undefined' && (typeof dt !== 'number' || dt <= 0)) {
+                throw new Error(`${structure_name}.dt must be a positive number`);
             }
             if (typeof x0 !== 'undefined' &&
                  (!Array.isArray(x0) || x0.length <= 0 || x0.some(e => (typeof e !== 'number'))) ) {
-                throw new Error('x0 must be a non-empty array of numbers');
+                throw new Error(`${structure_name}.x0 must be a non-empty array of numbers`);
             }
             if (typeof skip !== 'undefined' && (!Number.isInteger(skip) || skip < 0)) {
-                throw new Error('skip must be a non-negative intgeger');
+                throw new Error(`${structure_name}.skip must be a non-negative integer`);
             }
-            if (typeof steps !== 'undefined' && (!Number.isInteger(steps) || steps <= 0)) {
-                throw new Error('steps must be a positive intgeger');
+            if (typeof steps !== 'undefined' && (!Number.isInteger(steps) || steps < 0)) {
+                throw new Error(`${structure_name}.steps must be a non-negative integer`);
+            }
+            if (point_cloud) {
+                validate_point_cloud(point_cloud);
             }
         }
         function validate_equation_def(equation_def) {
             if ( typeof equation_def !== 'object') {
                 throw new Error('equation definition must be an object')
             }
-            validate_config(equation_def);  // equation_def is a subclass of config
+            validate_config(equation_def, 'equation_def');  // equation_def is a subclass of config
             const { iter, iter_delay, f } = equation_def;
             if (iter) {
                 const iterator_fn = iter[Symbol.iterator];
                 if ( (typeof iterator_fn !== 'undefined' && typeof iterator_fn !== 'function') &&
                      !(iter instanceof Generator) ) {
-                    throw new Error('iter must be an iterable or a generator function');
+                    throw new Error('equation_def.iter must be an iterable or a generator function');
                 }
             }
             if (typeof iter_delay !== 'undefined' && (typeof iter_delay !== 'number' || iter_delay < 0)) {
-                throw new Error('iter_delay must be a non-negative number');
+                throw new Error('equation_def.iter_delay must be a non-negative number');
             }
-            if (f) {
+            if (typeof f === 'undefined') {
+                throw new Error('equation_def.f must be defined');
+            } else {
                 validate_f(f);
             }
         }
@@ -301,7 +363,20 @@ return lorenz_def;
         function set_running_state(running) {
             runner?.stop();
             if (running) {
-                runner = new Runner(input_el.value);
+                const new_runner = new Runner(input_el.value);
+                runner = new_runner;
+                new_runner.done.then(
+                    () => {
+                        if (!new_runner.stopped) {
+                            set_running_state(false);
+                        }
+                    },
+                    error => {
+                        if (!new_runner.stopped) {
+                            set_running_state(false);
+                        }
+                    }
+                );
                 point_count_display_el.innerText = '';
                 go_button.innerText = 'Stop';
                 go_button.scrollIntoView();
@@ -337,8 +412,7 @@ return lorenz_def;
                     },
                 }];
 
-                this._stopped = false;
-                this._paused  = false;
+                this._paused = false;
 
                 this._the_plot_el_mousedown_handler = (event) => { this._paused = true; };
                 this._the_plot_el_mousedown_handler_options = { capture: true };
@@ -355,6 +429,7 @@ return lorenz_def;
                     this._the_plot_el_mouseup_handler_options
                 );
 
+                this._stopped = false;
                 this._running = false;
 
                 this._done = new Promise(async (resolve, reject) => {
@@ -393,7 +468,7 @@ return lorenz_def;
                             }
                             first_iteration = false;
 
-                            const { extrapolator, dt, x0, params, skip=0, steps=Infinity } = merged_config;
+                            const { extrapolator, dt, x0, params, skip=0, steps=Infinity, point_cloud } = merged_config;
 
                             let x = [ ...x0 ];  // copy x0 to insulate from mutation
                             if (skip <= 0) {
@@ -405,7 +480,10 @@ return lorenz_def;
                             while (this._running && point_count < skip+steps) {
                                 if (!this._paused) {
                                     const points_per_loop = parseInt(points_per_loop_el.value);
-                                    for (let i = 0; i < points_per_loop; i++) {
+                                    for (let lp = 0; lp < points_per_loop; lp++) {
+                                        if (!this._running) {
+                                            break;
+                                        }
                                         x = extrapolator(dt, f, x, params);
                                         point_count++;
                                         if (point_count >= skip) {
@@ -419,17 +497,7 @@ return lorenz_def;
                                     this._trim_data();
 
                                     if (point_count >= skip) {
-                                        const layout = {
-                                            height: plot_height,
-                                            datarevision: point_count,
-                                        };
-                                        // note: plot_el._fullLayout is undocumented...
-                                        if (plot_el._fullLayout?.scene?.camera) {
-                                            layout.scene = {
-                                                camera: plot_el._fullLayout.scene.camera,
-                                            };
-                                        }
-                                        plot_fn(plot_el, this._gdata, layout);
+                                        this._draw_data(plot_fn);
                                         plot_fn = Plotly.react;
                                     }
 
@@ -441,26 +509,29 @@ return lorenz_def;
                                     await new Promise(resolve => setTimeout(resolve, loop_delay));
                                 }
                             }
+
+                            // Done plotting graph for this config.
+                            // Finally, run its point cloud, if any.
+                            if (point_cloud) {
+                                await this._run_point_cloud(f, merged_config);
+                            }
                         }
 
                         // done
-                        if (!this._stopped) {
-                            set_running_state(false);
-                        }
                         resolve();
 
                     } catch (err) {
                         console.error(err.message, err.stack);
                         alert(`${err.message}\n\n${err.stack}`);
-                        if (!this._stopped) {
-                            set_running_state(false);
-                        }
                         reject(err);
                     }
                 });
             }
 
-            get done (){ return this._done; }
+            get running (){ return this._running; }
+            get paused  (){ return this._paused;  }
+            get stopped (){ return this._stopped; }
+            get done    (){ return this._done;    }
 
             stop() {
                 this._stopped = true;
@@ -500,10 +571,81 @@ return lorenz_def;
             }
 
             _add([x, y, z], c=1) {
-                this._xs.push(x);
-                this._ys.push(y);
-                this._zs.push(z);
+                this._xs.push(x ?? 0);
+                this._ys.push(y ?? 0);
+                this._zs.push(z ?? 0);
                 this._cs.push(c);
+            }
+
+            _draw_data(plot_fn) {
+                const layout = {
+                    height: plot_height,
+                    datarevision: Date.now(),
+                };
+                // note: plot_el._fullLayout is undocumented...
+                if (plot_el._fullLayout?.scene?.camera) {
+                    layout.scene = {
+                        camera: plot_el._fullLayout.scene.camera,
+                    };
+                }
+                plot_fn(plot_el, this._gdata, layout);
+            }
+
+            async _run_point_cloud(f, config) {
+                // config contains point_cloud
+                // assume config has already been validated
+                if (!this._gdata) {
+                    throw new Error('unexpected: !this._gdata');
+                }
+                // push a new trace for the point cloud onto the data
+                const pc_trace = {
+                    type: 'scatter3d',
+                    mode: 'markers',
+                    marker: {
+                        color: 'rgba(0, 0, 255, 1.0)',
+                        size: 1,
+                    },
+                };
+                this._gdata.push(pc_trace);  // add the new trace to the data
+
+                const { extrapolator, dt, x0, params, point_cloud } = config;
+                const { n, c, r, dt: pc_dt = dt, steps=Infinity } = point_cloud;
+                // generate the points
+                // the points we generate here lie in a N-cube centered at c
+                // with side length 2*r (where N = c.length).
+                let points = [];
+                function update_trace() {
+                    pc_trace.x = points.map(x => (x[0] ?? 0));
+                    pc_trace.y = points.map(x => (x[1] ?? 0));
+                    pc_trace.z = points.map(x => (x[2] ?? 0));
+                }
+
+                // set the initial positions of the points
+                for (let i = 0; i < n; i++) {
+                    points.push( c.map(xi => xi + r*2*(Math.random() - 0.5)) );
+                }
+                update_trace();
+
+                main_loop:
+                for (let s = 0; s < steps; s++) {
+                    while (this._paused && this._running) {
+                        await new Promise(resolve => setTimeout(resolve), 100);
+                    }
+                    if (!this._running) {
+                        break main_loop;
+                    }
+                    const points_per_loop = 1;//!!!parseInt(points_per_loop_el.value);
+                    for (let lp = 0; lp < points_per_loop; lp++) {
+                        if (!this._running) {
+                            break main_loop;
+                        }
+                        points = points.map(x => extrapolator(pc_dt, f, x, params));
+                        update_trace();
+                    }
+console.log('DRAWING');//!!!
+                    this._draw_data(Plotly.react);
+                    await new Promise(resolve => setTimeout(resolve));  // wait for next tick
+                }
             }
 
             static async _evaluate(expression) {
