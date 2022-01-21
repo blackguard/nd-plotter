@@ -180,17 +180,16 @@ const point_cloud_def = {
     extrapolator,
     dt: 0.005,
     x0: [3, 3, 1],
-    f:  ( (sigma=10, r=28, b=8/3) =>
-          ([x, y, z]) => [  // this is f, and it takes 1 argument which is decomposed into [x, y, z]
-              sigma*(y - x),
-              r*x - y - x*z,
-              x*y - b*z,
-          ]
-        )(),
+    params: { sigma: 10, r: 28, b: 8/3 },
+    f:  ([x, y, z], {sigma, r, b}) => [
+             sigma*(y - x),
+             r*x - y - x*z,
+             x*y - b*z,
+        ],
     skip:  1000,
     steps: 10000,
     point_cloud: {
-        n: 60000,
+        n: 6000,
         c: [3, 3, 1],
         r: 0.05,
         dt: 0.05,
@@ -609,10 +608,8 @@ return point_cloud_def;
                 this._gdata.push(pc_trace);  // add the new trace to the data
 
                 const { extrapolator, dt, x0, params, point_cloud } = config;
-                const { n, c, r, dt: pc_dt = dt, steps=Infinity } = point_cloud;
-                // generate the points
-                // the points we generate here lie in a N-cube centered at c
-                // with side length 2*r (where N = c.length).
+                const { n, c, r, dt:pc_dt=dt, steps=Infinity } = point_cloud;
+
                 let points = [];
                 function update_trace() {
                     pc_trace.x = points.map(x => (x[0] ?? 0));
@@ -620,7 +617,9 @@ return point_cloud_def;
                     pc_trace.z = points.map(x => (x[2] ?? 0));
                 }
 
-                // set the initial positions of the points
+                // generate the initial positions of the points
+                // the points we generate here lie in a N-cube centered at c
+                // with side length 2*r (where N = c.length).
                 for (let i = 0; i < n; i++) {
                     points.push( c.map(xi => xi + r*2*(Math.random() - 0.5)) );
                 }
