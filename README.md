@@ -33,7 +33,7 @@ Equations are defined in the input area, by returning an equation definition obj
 | :------------ | :-------: | :----------------- | :---------- |
 | title         |           | String             | title for the plot |
 | f             | x         | Function           | (x: number[], params?: any) => number[] |
-| iter          |           | Iterable|Generator | iterable, array or generator function returning Config objects for each iteration |
+| iter          |           | Iterable&#124;Generator | iterable, array or generator function returning Config objects for each iteration |
 | iter_delay    |           | number[]           | delay between iterations (milliseconds) |
 
 ... or any field from a Config object
