@@ -32,19 +32,52 @@ SOFTWARE.
         #input {
             width: 100%;
         }
+        #controls {
+            padding-top: 0.5rem;
+        }
         #controls div * {
             vertical-align: middle;
+        }
+        #adjustments {
+            padding-top: 0.5rem;
+            display: grid;
+            grid-template-columns: max-content auto;
+            gap: 0.5rem;
+        }
+        #adjustments label {
+            justify-self: end;
         }
         .display {
             margin-left: 0.1rem;
             padding: 0 0.5rem;
             background-color: #eee;
         }
+
+        .hidden {
+            display: none;
+        }
     </style>
 </head>
 <body>
     <textarea id="input">
-// F = (number[], params?: any) => number[]
+//////////////////////////////////////////////////////////////////////////////
+//
+// EquationDef = Config + {
+//     title?: string,
+//     f: Function,
+//     iter?: iterable<Config>|generator<Config>(def: EquationDef),
+//     iter_delay?: number,
+// }
+//
+// Config = {
+//     extrapolator?: (dt: number, f: Function, x: number[], params: any),
+//     dt?: number,
+//     x0?: number[],
+//     params?: any,
+//     skip?:  integer,
+//     steps?: integer,
+//     point_cloud?: PointCloud,
+// }
 //
 // PointCloud = {
 //     n: integer,
@@ -54,21 +87,9 @@ SOFTWARE.
 //     steps?: integer,
 // }
 //
-// Config = {
-//     extrapolator?: (dt: number, f: F, x: number[], params: any),
-//     dt?: number,
-//     x0?: number[],
-//     params?: any,
-//     skip?:  integer,
-//     steps?: integer,
-//     point_cloud?: PointCloud,
-// }
+// Function = (number[], params?: any) => number[]
 //
-// EquationDef = Config + {
-//     iter?: iterable<Config>|generator<Config>(def: EquationDef),
-//     iter_delay?: number,
-//     f: F,
-// }
+//////////////////////////////////////////////////////////////////////////////
 
 
 // extrapolator:
@@ -98,6 +119,7 @@ function runge_kutta_extrapolator(dt, f, x, params) {
 const extrapolator = runge_kutta_extrapolator;
 
 const lorenz_def = {
+    title: 'Lorenz Attractor',
     extrapolator,
     dt: 0.005,
     x0: [3, 3, 1],
@@ -111,6 +133,7 @@ const lorenz_def = {
 };
 
 const owl_def = {
+    title: 'Owl Attractor',
     extrapolator,
     dt: 0.005,
     x0: [3, 3, 1],
@@ -124,6 +147,7 @@ const owl_def = {
 };
 
 const rossler_def = {
+    title: 'Rössler Attractor',
     extrapolator,
     dt: 0.008,
     x0: [10, 10, 1],
@@ -137,6 +161,7 @@ const rossler_def = {
 };
 
 const rikitake0_def = {  // see: https://www.ncbi.nlm.nih.gov/pmc/articles/PMC7517210/
+    title: 'Rikitake Attractor ( from https://www.ncbi.nlm.nih.gov/pmc/articles/PMC7517210/ )',
     extrapolator,
     dt: 0.01,
     x0: [3, 1, 6],
@@ -150,6 +175,7 @@ const rikitake0_def = {  // see: https://www.ncbi.nlm.nih.gov/pmc/articles/PMC75
 };
 
 const rikitake_def = {
+    title: 'Rikitake Attractor',
     extrapolator,
     dt: 0.009,
     x0: [0.268, 2, 0],
@@ -163,6 +189,7 @@ const rikitake_def = {
 };
 
 const hyperchaos_def = {
+    title: 'Hyperchaos Attractor',
     extrapolator,
     dt: 0.005,
     x0: [-20, 15, 0, 35],
@@ -177,6 +204,7 @@ const hyperchaos_def = {
 };
 
 const point_cloud_def = {
+    title: 'Lorenz Attractor With Point Cloud',
     extrapolator,
     dt: 0.005,
     x0: [3, 3, 1],
@@ -202,25 +230,32 @@ return point_cloud_def;
     <div id="controls">
         <div>
             <button id="go">Go</button>
+            <button id="pause" class="hidden">Pause</button>
         </div>
-        <div>
+        <div id="adjustments">
             <label for="points_per_loop">Time steps per loop</label>
-            <input id="points_per_loop" type="range" min="1" max= "10000" value="1000">
-            <span id="points_per_loop_display" class="display"></span>
-        </div>
-        <div>
+            <div>
+                <input id="points_per_loop" type="range" min="1" max="10000" value="1000">
+                <span id="points_per_loop_display" class="display"></span>
+            </div>
             <label for="loop_delay">Loop delay</label>
-            <input id="loop_delay" type="range" min="0" max= "500" value="50">
-            <span id="loop_delay_display" class="display"></span> ms
-        </div>
-        <div>
+            <div>
+                <input id="loop_delay" type="range" min="0" max="500" value="50">
+                <span id="loop_delay_display" class="display"></span> ms
+            </div>
             <label for="points_shown">Time steps shown</label>
-            <input id="points_shown" type="range" min="0" max="100000" step="10" value="20000">
-            <span id="points_shown_display" class="display"></span>
-        </div>
-        <div>
+            <div>
+                <input id="points_shown" type="range" min="0" max="100000" step="10" value="20000">
+                <span id="points_shown_display" class="display"></span>
+            </div>
             <label for="point_count_display">Total time steps</label>
-            <span id="point_count_display" class="display"></span>
+            <div>
+                <span id="point_count_display" class="display"></span>
+            </div>
+            <label class="hidden" for="point_cloud_loop_display">Point cloud steps</label>
+            <div class="hidden">
+                <span id="point_cloud_loop_display" class="display"></span>
+            </div>
         </div>
     </div>
     <div id="plot"></div>
@@ -231,12 +266,32 @@ return point_cloud_def;
         const plot_el   = document.getElementById('plot');
         const output_el = document.getElementById('output');
 
-        const go_button = document.getElementById('go');
+        const go_button    = document.getElementById('go');
+        const pause_button = document.getElementById('pause');
 
-        const points_per_loop_el     = document.getElementById('points_per_loop');
-        const loop_delay_el          = document.getElementById('loop_delay');
-        const points_shown_el        = document.getElementById('points_shown');
-        const point_count_display_el = document.getElementById('point_count_display');
+        function set_go_button_state(running) {
+            if (running) {
+                go_button.innerText = 'Stop';
+            } else {
+                go_button.innerText = 'Go';
+            }
+        }
+
+        function set_pause_button_state(paused, running) {
+            pause_button.innerText = paused ? 'Resume' : 'Pause';
+            if (running) {
+                pause_button.classList.remove('hidden');
+            } else {
+                pause_button.classList.add('hidden');
+            }
+        }
+        set_go_button_state(false);
+        set_pause_button_state(false, false);
+
+        const points_per_loop_el          = document.getElementById('points_per_loop');
+        const loop_delay_el               = document.getElementById('loop_delay');
+        const points_shown_el             = document.getElementById('points_shown');
+        const point_count_display_el      = document.getElementById('point_count_display');
 
         for (const range_id of [
             'points_per_loop',
@@ -250,6 +305,22 @@ return point_cloud_def;
                 display_el.innerText = range_el.value;
             });
         }
+
+        const point_cloud_loop_display_el        = document.getElementById('point_cloud_loop_display');
+        const point_cloud_loop_display_parent_el = point_cloud_loop_display_el.parentElement;
+        const point_cloud_loop_display_label_el  = document.querySelector('label[for="point_cloud_loop_display"');
+
+        function set_point_cloud_loop_display(visible, value='') {
+            point_cloud_loop_display.innerText = value;
+            if (visible) {
+                point_cloud_loop_display_parent_el.classList.remove('hidden');
+                point_cloud_loop_display_label_el.classList.remove('hidden');
+            } else {
+                point_cloud_loop_display_parent_el.classList.add('hidden');
+                point_cloud_loop_display_label_el.classList.add('hidden');
+            }
+        }
+        set_point_cloud_loop_display(false);
 
         function setup_auto_resize(textarea) {
             const initial_height = (textarea.scrollHeight > 0) ? `${textarea.scrollHeight}px` : '0.5em';
@@ -340,7 +411,10 @@ return point_cloud_def;
                 throw new Error('equation definition must be an object')
             }
             validate_config(equation_def, 'equation_def');  // equation_def is a subclass of config
-            const { iter, iter_delay, f } = equation_def;
+            const { title, f, iter, iter_delay } = equation_def;
+            if (typeof title !== 'undefined' && typeof title !== 'string') {
+                throw new Error('equation_def.title must be a string');
+            }
             if (iter) {
                 const iterator_fn = iter[Symbol.iterator];
                 if ( (typeof iterator_fn !== 'undefined' && typeof iterator_fn !== 'function') &&
@@ -378,7 +452,7 @@ return point_cloud_def;
                 );
                 point_count_display_el.innerText = '';
                 go_button.innerText = 'Stop';
-                go_button.scrollIntoView();
+                document.getElementById('controls').scrollIntoView();
             } else {
                 runner = undefined;
                 go_button.innerText = 'Go';
@@ -398,6 +472,7 @@ return point_cloud_def;
                 this._cs = [];
 
                 this._gdata = [{
+                    name: 'equation',
                     type: 'scatter3d',
                     mode: 'lines',
                     x: this._xs,
@@ -411,11 +486,12 @@ return point_cloud_def;
                     },
                 }];
 
-                this._paused = false;
+                set_point_cloud_loop_display(false);
 
-                this._the_plot_el_mousedown_handler = (event) => { this._paused = true; };
+                this._mouse_paused = false;
+                this._the_plot_el_mousedown_handler = (event) => { this._mouse_paused = true; };
                 this._the_plot_el_mousedown_handler_options = { capture: true };
-                this._the_plot_el_mouseup_handler = (event) => { this._paused = false; };
+                this._the_plot_el_mouseup_handler = (event) => { this._mouse_paused = false; };
                 this._the_plot_el_mouseup_handler_options = { capture: true };
                 plot_el.addEventListener(
                     'mousedown',
@@ -428,19 +504,36 @@ return point_cloud_def;
                     this._the_plot_el_mouseup_handler_options
                 );
 
+                this._button_paused = false;
+                this._the_pause_button_click_handler = (event) => {
+                    this._button_paused = !this._button_paused;
+                    set_pause_button_state(this._button_paused, this._running);
+                };
+                this._the_pause_button_click_handler_options = {};
+                pause_button.addEventListener(
+                    'click',
+                    this._the_pause_button_click_handler,
+                    this._the_pause_button_click_handler_options
+                );
+
                 this._stopped = false;
                 this._running = false;
 
                 this._done = new Promise(async (resolve, reject) => {
                     this._running = true;
+                    set_go_button_state(this._running);
+                    set_pause_button_state(this._button_paused, this._running);
+ 
                     try {
 
                         const equation_def = await this.constructor._evaluate(this._input_expression);
                         validate_equation_def(equation_def);
 
-                        const { f, iter_delay } = equation_def;
-                        let   { iter }          = equation_def;
+                        this._equation_def = equation_def;  // provide access while in this._run_point_cloud()
 
+                        const { title, f, iter_delay } = equation_def;
+
+                        let { iter } = equation_def;
                         if (!iter) {
                             iter = [{}];  // one empty config
                         } else if (iter instanceof Generator) {
@@ -477,7 +570,7 @@ return point_cloud_def;
                             let plot_fn = Plotly.newPlot;
                             let point_count = 0;
                             while (this._running && point_count < skip+steps) {
-                                if (!this._paused) {
+                                if (!this.paused) {
                                     const points_per_loop = parseInt(points_per_loop_el.value);
                                     for (let lp = 0; lp < points_per_loop; lp++) {
                                         if (!this._running) {
@@ -511,7 +604,7 @@ return point_cloud_def;
 
                             // Done plotting graph for this config.
                             // Finally, run its point cloud, if any.
-                            if (point_cloud) {
+                            if (this._running && point_cloud) {
                                 await this._run_point_cloud(f, merged_config);
                             }
                         }
@@ -528,9 +621,9 @@ return point_cloud_def;
             }
 
             get running (){ return this._running; }
-            get paused  (){ return this._paused;  }
+            get paused  (){ return this._mouse_paused || this._button_paused; }
             get stopped (){ return this._stopped; }
-            get done    (){ return this._done;    }
+            get done    (){ return this._done; }
 
             stop() {
                 this._stopped = true;
@@ -545,6 +638,13 @@ return point_cloud_def;
                     this._the_plot_el_mouseup_handler,
                     this._the_plot_el_mouseup_handler_options
                 );
+                pause_button.removeEventListener(
+                    'click',
+                    this._the_pause_button_click_handler,
+                    this._the_pause_button_click_handler_options
+                );
+                this._button_paused = false;
+                set_pause_button_state(this._button_paused, this._running);
             }
 
             // internal
@@ -587,10 +687,15 @@ return point_cloud_def;
                         camera: plot_el._fullLayout.scene.camera,
                     };
                 }
+                if (this._equation_def?.title) {
+                    layout.title = this._equation_def.title;
+                }
                 plot_fn(plot_el, this._gdata, layout);
             }
 
             async _run_point_cloud(f, config) {
+                set_point_cloud_loop_display(true, '');
+
                 // config contains point_cloud
                 // assume config has already been validated
                 if (!this._gdata) {
@@ -598,6 +703,7 @@ return point_cloud_def;
                 }
                 // push a new trace for the point cloud onto the data
                 const pc_trace = {
+                    name: 'point cloud',
                     type: 'scatter3d',
                     mode: 'markers',
                     marker: {
@@ -627,7 +733,7 @@ return point_cloud_def;
 
                 main_loop:
                 for (let s = 0; s < steps; s++) {
-                    while (this._paused && this._running) {
+                    while (this.paused && this._running) {
                         await new Promise(resolve => setTimeout(resolve), 100);
                     }
                     if (!this._running) {
@@ -641,9 +747,13 @@ return point_cloud_def;
                         points = points.map(x => extrapolator(pc_dt, f, x, params));
                         update_trace();
                     }
-console.log('DRAWING');//!!!
+
                     this._draw_data(Plotly.react);
-                    await new Promise(resolve => setTimeout(resolve));  // wait for next tick
+
+                    set_point_cloud_loop_display(true, s+1);
+
+                    const loop_delay = parseInt(loop_delay_el.value);
+                    await new Promise(resolve => setTimeout(resolve, loop_delay));
                 }
             }
 
