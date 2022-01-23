@@ -8,7 +8,7 @@ Try it out [here](https://blackguard.github.io/ode-plotter/ode-plotter.html)
 
 # License
 
-This software is licensed under an MIT License.  See [here](LICENCE)
+This software is licensed under an MIT License.  See [here](LICENSE.txt)
 
 # Usage
 Load the file ode-plotter.html in a modern Web browser such as Firefox or Chromium.
