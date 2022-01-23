@@ -27,14 +27,14 @@ Note: this has been tested on Chromium and Firefox on Ubuntu 20.04.  I hope that
 
 Equations are defined in the input area, by returning an equation definition object.
 
-## Equation Definition Properties
+## Equation Definition Object Properties
 
-| Name          | Required? | Type               | Description |
-| :------------ | :-------: | :----------------- | :---------- |
-| title         |           | String             | title for the plot |
-| f             | x         | Function           | (x: number[], params?: any) => number[] |
+| Name          | Required? | Type                    | Description |
+| :------------ | :-------: | :---------------------- | :---------- |
+| title         |           | String                  | title for the plot |
+| f             | x         | Function                | function returning ẋ; (x: number[], params: any) => number[] |
 | iter          |           | Iterable&#124;Generator | iterable, array or generator function returning Config objects for each iteration |
-| iter_delay    |           | number[]           | delay between iterations (milliseconds) |
+| iter_delay    |           | number[]                | delay between iterations (milliseconds) |
 
 ... or any field from a Config object
 
@@ -42,7 +42,7 @@ Equations are defined in the input area, by returning an equation definition obj
 
 | Name          | Required? | Type                 | Description |
 | :------------ | :-------: | :------------------- | :---------- |
-| extrapolator  |           | Function             | (dt: number, f: Function, x: number[], params: any) => number[] |
+| extrapolator  |           | Function             | (see below for an example); (dt: number, f: Function, x: number[], params: any) => number[] |
 | dt            |           | number[]             | time step |
 | x0            |           | number[]             | initial value |
 | params        |           | any                  | parameters that will be passed to f |
@@ -50,7 +50,7 @@ Equations are defined in the input area, by returning an equation definition obj
 | steps         |           | non-negative integer | number of time steps to plot after skipped time steps (default: Infinity) |
 | point_cloud   |           | PointCloud           | definition of point cloud to be plotted after main equation is plotted |
 
-## PointCloud Properties
+## PointCloud Object Properties
 
 | Name          | Required? | Type                 | Description |
 | :------------ | :-------: | :------------------- | :---------- |
@@ -59,6 +59,12 @@ Equations are defined in the input area, by returning an equation definition obj
 | r             | x         | number               | maximum radius around center for points |
 | dt            |           | number               | time step (default: time step from current config) |
 | steps         |           | non-negative integer | number of time steps to run point cloud (default: Infinity) |
+
+## Operation
+
+Overall, one or more plots is displayed.  Optionally, each plot is followed by a point cloud which is a set of points that start out from nearly the same point and evolve according to the function, giving a sense of the dynamics.
+
+Each of the displayed plots is controlled by a Config.  If there is no _iter_ property defined in the Equation Definition, then the Config is the Equation Definition itself and only one plot is displayed.  If there is an _iter_ property defined, then each Config returned defines one plot, and the Equation Definition and Config are combined to form the merged Config used for that plot.  In either case, the _extrapolator_, _dt_ and _x0_ properties must be defined in the (merged) Config.
 
 ## Examples
 
@@ -78,6 +84,8 @@ function runge_kutta_extrapolator(dt, f, x, params) {
 }
 const extrapolator = runge_kutta_extrapolator;
 ```
+
+The following subsections give some example definitions.
 
 ### Lorenz attractor
 
