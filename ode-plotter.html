@@ -87,7 +87,7 @@ SOFTWARE.
 // }
 //
 // Config = {
-//     extrapolator?: (dt: number, f: Function, x: number[], params: any),
+//     extrapolator?: (dt: number, f: Function, x: number[], params: any) => number[],
 //     dt?: number,
 //     x0?: number[],
 //     params?: any,
@@ -104,7 +104,7 @@ SOFTWARE.
 //     steps?: integer,
 // }
 //
-// Function = (number[], params?: any) => number[]
+// Function = (x: number[], params?: any) => number[]
 //
 //////////////////////////////////////////////////////////////////////////////
 
@@ -624,6 +624,9 @@ return point_cloud_def;
                             first_iteration = false;
 
                             const { extrapolator, dt, x0, params, skip=0, steps=Infinity, point_cloud } = merged_config;
+                            if (typeof extrapolator === 'undefined') {
+                                throw new Error('extrapolator was not specified');
+                            }
                             if (typeof dt === 'undefined') {
                                 throw new Error('dt was not specified');
                             }
