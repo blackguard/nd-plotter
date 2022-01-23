@@ -32,21 +32,38 @@ SOFTWARE.
         #input {
             width: 100%;
         }
-        #controls {
+
+        #info_display {
+            display: flex;
+            gap: 2rem;
+        }
+
+        #play_controls {
             padding-top: 0.5rem;
+            padding-bottom: 0.5rem;
+        }
+
+        #controls {
+            width: fit-content;
         }
         #controls div * {
             vertical-align: middle;
         }
+
         #adjustments {
-            padding-top: 0.5rem;
             display: grid;
-            grid-template-columns: max-content auto;
+            grid-template-columns: max-content max-content;
             gap: 0.5rem;
         }
         #adjustments label {
             justify-self: end;
         }
+
+        #config_display {
+            width: fit-content;
+            font-family: monospace;
+        }
+
         .display {
             margin-left: 0.1rem;
             padding: 0 0.5rem;
@@ -227,38 +244,40 @@ const point_cloud_def = {
 // return the equation definition to plot
 return point_cloud_def;
     </textarea>
-    <div id="controls">
-        <div>
-            <button id="go">Go</button>
-            <button id="pause" class="hidden">Pause</button>
-        </div>
-        <div id="adjustments">
-            <label for="points_per_loop">Time steps per loop</label>
-            <div>
-                <input id="points_per_loop" type="range" min="1" max="10000" value="1000">
-                <span id="points_per_loop_display" class="display"></span>
-            </div>
-            <label for="loop_delay">Loop delay</label>
-            <div>
-                <input id="loop_delay" type="range" min="0" max="500" value="50">
-                <span id="loop_delay_display" class="display"></span> ms
-            </div>
-            <label for="points_shown">Time steps shown</label>
-            <div>
-                <input id="points_shown" type="range" min="0" max="100000" step="10" value="20000">
-                <span id="points_shown_display" class="display"></span>
-            </div>
-            <label for="point_count_display">Total time steps</label>
-            <div>
-                <span id="point_count_display" class="display"></span>
-            </div>
-            <label class="hidden" for="point_cloud_loop_display">Point cloud steps</label>
-            <div class="hidden">
-                <span id="point_cloud_loop_display" class="display"></span>
-            </div>
-        </div>
+    <div id="play_controls">
+        <button id="go">Go</button>
+        <button id="pause" class="hidden">Pause</button>
     </div>
-    <div id="config_display"></div>
+    <div id="info_display">
+        <div id="controls">
+            <div id="adjustments">
+                <label for="points_per_loop">Time steps per loop</label>
+                <div>
+                    <input id="points_per_loop" type="range" min="1" max="10000" value="1000">
+                    <span id="points_per_loop_display" class="display"></span>
+                </div>
+                <label for="loop_delay">Loop delay</label>
+                <div>
+                    <input id="loop_delay" type="range" min="0" max="500" value="50">
+                    <span id="loop_delay_display" class="display"></span> ms
+                </div>
+                <label for="points_shown">Time steps shown</label>
+                <div>
+                    <input id="points_shown" type="range" min="0" max="100000" step="10" value="20000">
+                    <span id="points_shown_display" class="display"></span>
+                </div>
+                <label for="point_count_display">Total time steps</label>
+                <div>
+                    <span id="point_count_display" class="display"></span>
+                </div>
+                <label class="hidden" for="point_cloud_loop_display">Point cloud steps</label>
+                <div class="hidden">
+                    <span id="point_cloud_loop_display" class="display"></span>
+                </div>
+            </div>
+        </div>
+        <div id="config_display"></div>
+    </div>
     <div id="plot"></div>
     <div id="output"></div>
 
@@ -324,6 +343,46 @@ return point_cloud_def;
         set_point_cloud_loop_display(false);
 
         const config_display_el = document.getElementById('config_display');
+
+        function display_config(config) {
+            if (!config) {
+                config_display_el.classList.add('hidden');
+                config_display_el.innerText = '';
+            } else {
+                config_display_el.classList.remove('hidden');
+                const { dt, x0, params, skip, steps, point_cloud } = config;
+                const lines = [];
+                lines.push('--- CONFIG ---');
+                lines.push(`dt: ${dt}`);
+                lines.push(`x0: [${x0.join(', ')}]`);
+                if (params) {
+                    let params_str;
+                    if (typeof params === 'object') {
+                        try {
+                            params_str = JSON.stringify(params);
+                        } catch (_) {
+                            params_str = params.toString();
+                        }
+                    } else {
+                        params_str = params.toString();
+                    }
+                    lines.push(`params: ${params_str}`);
+                }
+                if (skip) {
+                    lines.push(`skip: ${skip}`);
+                }
+                if (steps) {
+                    lines.push(`steps: ${steps}`);
+                }
+                if (point_cloud) {
+                    const { n, c, r, dt:pc_dt=dt, steps:pc_steps } = point_cloud;
+                    lines.push(`--- point cloud ---`);
+                    lines.push(`n: ${n}, c: [${c.join(', ')}], dt: ${pc_dt}${pc_steps ? `, steps:${pc_steps}` : ''}}`);
+                }
+                config_display_el.innerText = lines.join('\n');
+            }
+        }
+        display_config();
 
         function setup_auto_resize(textarea) {
             const initial_height = (textarea.scrollHeight > 0) ? `${textarea.scrollHeight}px` : '0.5em';
@@ -455,7 +514,7 @@ return point_cloud_def;
                 );
                 point_count_display_el.innerText = '';
                 go_button.innerText = 'Stop';
-                document.getElementById('controls').scrollIntoView();
+                document.getElementById('play_controls').scrollIntoView();
             } else {
                 runner = undefined;
                 go_button.innerText = 'Go';
@@ -489,6 +548,7 @@ return point_cloud_def;
                     },
                 }];
 
+                display_config();
                 set_point_cloud_loop_display(false);
 
                 this._mouse_paused = false;
@@ -526,7 +586,7 @@ return point_cloud_def;
                     this._running = true;
                     set_go_button_state(this._running);
                     set_pause_button_state(this._button_paused, this._running);
- 
+
                     try {
 
                         const equation_def = await this.constructor._evaluate(this._input_expression);
@@ -571,7 +631,7 @@ return point_cloud_def;
                                 throw new Error('x0 was not specified');
                             }
 
-                            this._display_config(merged_config);
+                            display_config(merged_config);
 
                             let x = [ ...x0 ];  // copy x0 to insulate from mutation
                             if (skip <= 0) {
@@ -702,42 +762,6 @@ return point_cloud_def;
                     layout.title = this._equation_def.title;
                 }
                 plot_fn(plot_el, this._gdata, layout);
-            }
-
-            _display_config(config) {
-                if (!config) {
-                    config_display_el.innerText = '';
-                } else {
-                    const { dt, x0, params, skip, steps, point_cloud } = config;
-                    const lines = [];
-                    lines.push(`dt: ${dt}`);
-                    lines.push(`x0: [${x0.join(', ')}]`);
-                    if (params) {
-                        let params_str;
-                        if (typeof params === 'object') {
-                            try {
-                                params_str = JSON.stringify(params);
-                            } catch (_) {
-                                params_str = params.toString();
-                            }
-                        } else {
-                            params_str = params.toString();
-                        }
-                        lines.push(`params: ${params_str}`);
-                    }
-                    if (skip) {
-                        lines.push(`skip: ${skip}`);
-                    }
-                    if (steps) {
-                        lines.push(`steps: ${steps}`);
-                    }
-                    if (point_cloud) {
-                        const { n, c, r, dt:pc_dt=dt, steps:pc_steps } = point_cloud;
-                        lines.push(`--- point cloud ---`);
-                        lines.push(`n: ${n}, c: [${c.join(', ')}], dt: ${pc_dt}${pc_steps ? `, steps:${pc_steps}` : ''}}`);
-                    }
-                    config_display_el.innerText = lines.join('\n');
-                }
             }
 
             async _run_point_cloud(f, config) {
