@@ -258,6 +258,7 @@ return point_cloud_def;
             </div>
         </div>
     </div>
+    <div id="config_display"></div>
     <div id="plot"></div>
     <div id="output"></div>
 
@@ -321,6 +322,8 @@ return point_cloud_def;
             }
         }
         set_point_cloud_loop_display(false);
+
+        const config_display_el = document.getElementById('config_display');
 
         function setup_auto_resize(textarea) {
             const initial_height = (textarea.scrollHeight > 0) ? `${textarea.scrollHeight}px` : '0.5em';
@@ -561,6 +564,14 @@ return point_cloud_def;
                             first_iteration = false;
 
                             const { extrapolator, dt, x0, params, skip=0, steps=Infinity, point_cloud } = merged_config;
+                            if (typeof dt === 'undefined') {
+                                throw new Error('dt was not specified');
+                            }
+                            if (typeof x0 === 'undefined') {
+                                throw new Error('x0 was not specified');
+                            }
+
+                            this._display_config(merged_config);
 
                             let x = [ ...x0 ];  // copy x0 to insulate from mutation
                             if (skip <= 0) {
@@ -691,6 +702,42 @@ return point_cloud_def;
                     layout.title = this._equation_def.title;
                 }
                 plot_fn(plot_el, this._gdata, layout);
+            }
+
+            _display_config(config) {
+                if (!config) {
+                    config_display_el.innerText = '';
+                } else {
+                    const { dt, x0, params, skip, steps, point_cloud } = config;
+                    const lines = [];
+                    lines.push(`dt: ${dt}`);
+                    lines.push(`x0: [${x0.join(', ')}]`);
+                    if (params) {
+                        let params_str;
+                        if (typeof params === 'object') {
+                            try {
+                                params_str = JSON.stringify(params);
+                            } catch (_) {
+                                params_str = params.toString();
+                            }
+                        } else {
+                            params_str = params.toString();
+                        }
+                        lines.push(`params: ${params_str}`);
+                    }
+                    if (skip) {
+                        lines.push(`skip: ${skip}`);
+                    }
+                    if (steps) {
+                        lines.push(`steps: ${steps}`);
+                    }
+                    if (point_cloud) {
+                        const { n, c, r, dt:pc_dt=dt, steps:pc_steps } = point_cloud;
+                        lines.push(`--- point cloud ---`);
+                        lines.push(`n: ${n}, c: [${c.join(', ')}], dt: ${pc_dt}${pc_steps ? `, steps:${pc_steps}` : ''}}`);
+                    }
+                    config_display_el.innerText = lines.join('\n');
+                }
             }
 
             async _run_point_cloud(f, config) {
