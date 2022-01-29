@@ -95,7 +95,7 @@ SOFTWARE.
 // }
 //
 // Config = {
-//     extrapolator?: (dt: number, f: Function, x: number[], params: any) => number[],
+//     integrator?: (dt: number, f: Function, x: number[], params: any) => number[],
 //     dt?: number,
 //     x0?: number[],
 //     params?: any,
@@ -117,11 +117,11 @@ SOFTWARE.
 //////////////////////////////////////////////////////////////////////////////
 
 
-// extrapolator:
+// integrator:
 // f(x) returns xdot which has the same dimension as x
-// extrapolator returns a new x with the same dimension as the original
+// integrator returns a new x with the same dimension as the original
 
-function runge_kutta_extrapolator(dt, f, x, params) {
+function runge_kutta_integrator(dt, f, x, params) {
     // This is an implementation of the fourth-order Runge-Kutta method
     // as presented in Nonlinear Dynamics and Chaos, Second Edition, by
     // Steven H. Strogatz, page 34.
@@ -141,11 +141,11 @@ function runge_kutta_extrapolator(dt, f, x, params) {
 //
 //                 http://csc.ucdavis.edu/~chaos/courses/poci/
 
-const extrapolator = runge_kutta_extrapolator;
+const integrator = runge_kutta_integrator;
 
 const lorenz_def = {
     title: 'Lorenz Attractor',
-    extrapolator,
+    integrator,
     dt: 0.005,
     x0: [3, 3, 1],
     f:  ( (sigma=10, r=28, b=8/3) =>
@@ -159,7 +159,7 @@ const lorenz_def = {
 
 const owl_def = {
     title: 'Owl Attractor',
-    extrapolator,
+    integrator,
     dt: 0.005,
     x0: [3, 3, 1],
     f:  ( (a=10, b=10, c=13) =>
@@ -173,7 +173,7 @@ const owl_def = {
 
 const rossler_def = {
     title: 'Rössler Attractor',
-    extrapolator,
+    integrator,
     dt: 0.008,
     x0: [10, 10, 1],
     f:  ( (a=0.2, b=0.2, c=5.7) =>
@@ -187,7 +187,7 @@ const rossler_def = {
 
 const rikitake0_def = {  // see: https://www.ncbi.nlm.nih.gov/pmc/articles/PMC7517210/
     title: 'Rikitake Attractor ( from https://www.ncbi.nlm.nih.gov/pmc/articles/PMC7517210/ )',
-    extrapolator,
+    integrator,
     dt: 0.01,
     x0: [3, 1, 6],
     f:  ( (alpha=5, beta=2) =>
@@ -201,7 +201,7 @@ const rikitake0_def = {  // see: https://www.ncbi.nlm.nih.gov/pmc/articles/PMC75
 
 const rikitake_def = {
     title: 'Rikitake Attractor',
-    extrapolator,
+    integrator,
     dt: 0.009,
     x0: [0.268, 2, 0],
     f:  ( (a=1, b=3.75) =>
@@ -215,7 +215,7 @@ const rikitake_def = {
 
 const hyperchaos_def = {
     title: 'Hyperchaos Attractor',
-    extrapolator,
+    integrator,
     dt: 0.005,
     x0: [-20, 15, 0, 35],
     f:  ( (a=0.25, b=-0.5, c=2.2, d=0.05) =>
@@ -230,7 +230,7 @@ const hyperchaos_def = {
 
 const point_cloud_def = {
     title: 'Lorenz Attractor With Point Cloud',
-    extrapolator,
+    integrator,
     dt: 0.005,
     x0: [3, 3, 1],
     params: { sigma: 10, r: 28, b: 8/3 },
@@ -419,9 +419,9 @@ return point_cloud_def;
                 throw new Error('f must be a function');
             }
         }
-        function validate_extrapolator(extrapolator) {
-            if (typeof extrapolator !== 'function') {
-                throw new Error('extrapolator must be a function');
+        function validate_integrator(integrator) {
+            if (typeof integrator !== 'function') {
+                throw new Error('integrator must be a function');
             }
         }
         function validate_point_cloud(point_cloud) {
@@ -455,9 +455,9 @@ return point_cloud_def;
             if ( typeof config !== 'object') {
                 throw new Error(`${structure_name} must be an object`)
             }
-            const { extrapolator, dt, x0, skip, steps, point_cloud } = config;  // params is unrestricted
-            if (extrapolator) {
-                validate_extrapolator(extrapolator);
+            const { integrator, dt, x0, skip, steps, point_cloud } = config;  // params is unrestricted
+            if (integrator) {
+                validate_integrator(integrator);
             }
             if (typeof dt !== 'undefined' && (typeof dt !== 'number' || dt <= 0)) {
                 throw new Error(`${structure_name}.dt must be a positive number`);
@@ -631,9 +631,9 @@ return point_cloud_def;
                             }
                             first_iteration = false;
 
-                            const { extrapolator, dt, x0, params, skip=0, steps=Infinity, point_cloud } = merged_config;
-                            if (typeof extrapolator === 'undefined') {
-                                throw new Error('extrapolator was not specified');
+                            const { integrator, dt, x0, params, skip=0, steps=Infinity, point_cloud } = merged_config;
+                            if (typeof integrator === 'undefined') {
+                                throw new Error('integrator was not specified');
                             }
                             if (typeof dt === 'undefined') {
                                 throw new Error('dt was not specified');
@@ -658,7 +658,7 @@ return point_cloud_def;
                                         if (!this._running) {
                                             break;
                                         }
-                                        x = extrapolator(dt, f, x, params);
+                                        x = integrator(dt, f, x, params);
                                         point_count++;
                                         if (point_count >= skip) {
                                             this._add(x);
@@ -795,7 +795,7 @@ return point_cloud_def;
                 };
                 this._gdata.push(pc_trace);  // add the new trace to the data
 
-                const { extrapolator, dt, x0, params, point_cloud } = config;
+                const { integrator, dt, x0, params, point_cloud } = config;
                 const { n, c, r, dt:pc_dt=dt, steps=Infinity } = point_cloud;
 
                 let points = [];
@@ -826,7 +826,7 @@ return point_cloud_def;
                         if (!this._running) {
                             break main_loop;
                         }
-                        points = points.map(x => extrapolator(pc_dt, f, x, params));
+                        points = points.map(x => integrator(pc_dt, f, x, params));
                         update_trace();
                     }
 

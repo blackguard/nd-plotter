@@ -26,49 +26,49 @@ Equations are defined in the input area, by returning an equation definition obj
 
 ## Equation Definition Object Properties
 
-| Name          | Required? | Type                    | Description |
-| :------------ | :-------: | :---------------------- | :---------- |
-| title         |           | String                  | title for the plot |
-| f             | x         | Function                | function returning ẋ; (x: number[], params: any) => number[] |
-| iter          |           | Iterable&#124;Generator | iterable, array or generator function returning Config objects for each iteration |
-| iter_delay    |           | number[]                | delay between iterations (milliseconds) |
+| Name        | Required? | Type                    | Description |
+| :---------- | :-------: | :---------------------- | :---------- |
+| title       |           | String                  | title for the plot |
+| f           | x         | Function                | function returning ẋ; (x: number[], params: any) => number[] |
+| iter        |           | Iterable&#124;Generator | iterable, array or generator function returning Config objects for each iteration |
+| iter_delay  |           | number[]                | delay between iterations (milliseconds) |
 
 ... or any field from a Config object
 
 ## Config Object Properties
 
-| Name          | Required? | Type                 | Description |
-| :------------ | :-------: | :------------------- | :---------- |
-| extrapolator  |           | Function             | (see below for an example); (dt: number, f: Function, x: number[], params: any) => number[] |
-| dt            |           | number[]             | time step |
-| x0            |           | number[]             | initial value |
-| params        |           | any                  | parameters that will be passed to f |
-| skip          |           | non-negative integer | number of time steps to skip before beginning plot (default: 0) |
-| steps         |           | non-negative integer | number of time steps to plot after skipped time steps (default: Infinity) |
-| point_cloud   |           | PointCloud           | definition of point cloud to be plotted after main equation is plotted |
+| Name        | Required? | Type                 | Description |
+| :---------- | :-------: | :------------------- | :---------- |
+| integrator  |           | Function             | (see below for an example); (dt: number, f: Function, x: number[], params: any) => number[] |
+| dt          |           | number[]             | time step |
+| x0          |           | number[]             | initial value |
+| params      |           | any                  | parameters that will be passed to f |
+| skip        |           | non-negative integer | number of time steps to skip before beginning plot (default: 0) |
+| steps       |           | non-negative integer | number of time steps to plot after skipped time steps (default: Infinity) |
+| point_cloud |           | PointCloud           | definition of point cloud to be plotted after main equation is plotted |
 
 ## PointCloud Object Properties
 
-| Name          | Required? | Type                 | Description |
-| :------------ | :-------: | :------------------- | :---------- |
-| n             | x         | positive integer     | number of point cloud points |
-| c             | x         | number[]             | center of point cloud |
-| r             | x         | number               | maximum radius around center for points |
-| dt            |           | number               | time step (default: time step from current config) |
-| steps         |           | non-negative integer | number of time steps to run point cloud (default: Infinity) |
+| Name        | Required? | Type                 | Description |
+| :---------- | :-------: | :------------------- | :---------- |
+| n           | x         | positive integer     | number of point cloud points |
+| c           | x         | number[]             | center of point cloud |
+| r           | x         | number               | maximum radius around center for points |
+| dt          |           | number               | time step (default: time step from current config) |
+| steps       |           | non-negative integer | number of time steps to run point cloud (default: Infinity) |
 
 ## Operation
 
 Overall, one or more plots is displayed.  Optionally, each plot is followed by a point cloud which is a set of points that start out from nearly the same point and evolve according to the function, giving a sense of the dynamics.
 
-Each of the displayed plots is controlled by a Config.  If there is no _iter_ property defined in the Equation Definition, then the Config is the Equation Definition itself and only one plot is displayed.  If there is an _iter_ property defined, then each Config returned defines one plot, and the Equation Definition and Config are combined to form the merged Config used for that plot.  In either case, the _extrapolator_, _dt_ and _x0_ properties must be defined in the (merged) Config.
+Each of the displayed plots is controlled by a Config.  If there is no _iter_ property defined in the Equation Definition, then the Config is the Equation Definition itself and only one plot is displayed.  If there is an _iter_ property defined, then each Config returned defines one plot, and the Equation Definition and Config are combined to form the merged Config used for that plot.  In either case, the _integrator_, _dt_ and _x0_ properties must be defined in the (merged) Config.
 
 ## Examples
 
-The following examples reference an extrapolator.  An example is:
+The following examples reference an integrator.  An example is:
 
 ```javascript
-function runge_kutta_extrapolator(dt, f, x, params) {
+function runge_kutta_integrator(dt, f, x, params) {
     // This is an implementation of the fourth-order Runge-Kutta method
     // as presented in Nonlinear Dynamics and Chaos, Second Edition, by
     // Steven H. Strogatz, page 34.
@@ -79,7 +79,7 @@ function runge_kutta_extrapolator(dt, f, x, params) {
     const k4 = f( x.map( (xi, i) => xi + k3[i]),    params ).map( xidot => xidot*dt );
     return x.map( (xi, i) => xi + (k1[i] + 2*k2[i] + 2*k3[i] + k4[i])/6 );
 }
-const extrapolator = runge_kutta_extrapolator;
+const integrator = runge_kutta_integrator;
 ```
 
 The following subsections give some example definitions.
@@ -89,7 +89,7 @@ The following subsections give some example definitions.
 ```javascript
 return {
     title: 'Lorenz Attractor',
-    extrapolator,
+    integrator,
     dt: 0.005,
     x0: [3, 3, 1],
     params: { sigma: 10, r: 28, b: 8/3 },
@@ -105,7 +105,7 @@ return {
 
 ```javascript
 return {
-    extrapolator,
+    integrator,
     dt: 0.02,
     x0: [10, 10, 1],
     f:  ([x, y, z], {a, b, c}) => [
@@ -130,7 +130,7 @@ return {
 ```javascript
 return {
     title: 'Lorenz Attractor With Point Cloud',
-    extrapolator,
+    integrator,
     dt: 0.005,
     x0: [3, 3, 1],
     params: { sigma: 10, r: 28, b: 8/3 },
