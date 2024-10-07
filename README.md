@@ -1,9 +1,9 @@
 # ode-plotter
 Simple plotting utility for nonlinear dynamics attractors and other ODEs using the Plotly graphing library.
 
-Try it out [here](https://blackguard.github.io/ode-plotter/ode-plotter.html).
+Try it out [here](https://ed-puckett.github.io/ode-plotter/ode-plotter.html).
 
-[Repository on github](https://github.com/blackguard/ode-plotter)
+[Repository on github](https://github.com/ed-puckett/ode-plotter)
 
 # License
 This software is licensed under the MIT License.  See [here](LICENSE.txt).
